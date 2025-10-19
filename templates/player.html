@@ -1,0 +1,534 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>影片播放器</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            background: #000;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            overflow: hidden;
+        }
+        
+        .player-container {
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+        }
+        
+        video {
+            max-width: 100%;
+            max-height: 100%;
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+        
+        .waiting-screen {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            text-align: center;
+            width: 100%;
+            height: 100%;
+        }
+        
+        .waiting-screen h1 {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+            opacity: 0.8;
+        }
+        
+        .waiting-screen p {
+            font-size: 1.2rem;
+            opacity: 0.6;
+        }
+        
+        .status-bar {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: rgba(0,0,0,0.7);
+            color: white;
+            padding: 10px 20px;
+            font-size: 0.9rem;
+            z-index: 100;
+            transition: transform 0.3s ease;
+        }
+        
+        .status-bar.hidden {
+            transform: translateY(100%);
+        }
+        
+        .connection-status {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 8px 15px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: bold;
+            z-index: 101;
+        }
+        
+        .connected {
+            background: #4CAF50;
+            color: white;
+        }
+        
+        .disconnected {
+            background: #f44336;
+            color: white;
+        }
+        
+        .loading {
+            background: #ff9800;
+            color: white;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        
+        .pulse {
+            animation: pulse 2s infinite;
+        }
+        
+        .room-selector {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.9);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+        
+        .selector-content {
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            max-width: 500px;
+            width: 90%;
+            text-align: center;
+        }
+        
+        .selector-content h2 {
+            color: #333;
+            margin-bottom: 10px;
+        }
+        
+        .selector-content p {
+            color: #666;
+            margin-bottom: 20px;
+        }
+        
+        .room-list {
+            max-height: 300px;
+            overflow-y: auto;
+            margin-bottom: 20px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+        }
+        
+        .room-item {
+            padding: 15px;
+            border-bottom: 1px solid #eee;
+            cursor: pointer;
+            transition: background 0.2s ease;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .room-item:hover {
+            background: #f5f5f5;
+        }
+        
+        .room-item:last-child {
+            border-bottom: none;
+        }
+        
+        .room-name {
+            font-weight: 500;
+            color: #333;
+        }
+        
+        .room-info {
+            font-size: 0.8rem;
+            color: #666;
+        }
+        
+        .selector-actions {
+            display: flex;
+            gap: 10px;
+        }
+        
+        .selector-actions input {
+            flex: 1;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        
+        .selector-actions button {
+            padding: 10px 20px;
+            border: none;
+            background: #667eea;
+            color: white;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        
+        .room-btn {
+            padding: 10px 20px;
+            border: none;
+            background: rgba(255,255,255,0.2);
+            color: white;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 0.9rem;
+        }
+        
+        .room-btn:hover {
+            background: rgba(255,255,255,0.3);
+        }
+        
+        .loading {
+            padding: 20px;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <div class="player-container">
+        <div class="room-selector" id="roomSelector" style="display: none;">
+            <div class="selector-content">
+                <h2>🏠 選擇房間</h2>
+                <p>請選擇要加入的播放房間：</p>
+                <div class="room-list" id="roomList">
+                    <div class="loading">載入房間中...</div>
+                </div>
+                <div class="selector-actions">
+                    <input type="text" id="newRoomInput" placeholder="或輸入新房間名稱" maxlength="20">
+                    <button id="joinNewRoomBtn">創建並加入</button>
+                </div>
+            </div>
+        </div>
+        
+        <div class="waiting-screen" id="waitingScreen">
+            <h1>🎬</h1>
+            <p>等待影片播放指令...</p>
+            <p style="margin-top: 1rem; font-size: 0.9rem;">請使用控制台選擇要播放的影片</p>
+            <div style="margin-top: 2rem;">
+                <button class="room-btn" id="changeRoomBtn">🏠 切換房間</button>
+            </div>
+        </div>
+        
+        <video id="videoPlayer" style="display: none;" controls preload="metadata">
+            您的瀏覽器不支援影片播放。
+        </video>
+    </div>
+    
+    <div class="connection-status loading" id="connectionStatus">
+        🔄 連接中...
+    </div>
+    
+    <div class="status-bar" id="statusBar">
+        <span id="roomInfo">房間: <span id="currentRoom">未選擇</span></span>
+        <span style="margin: 0 20px;">|</span>
+        <span id="movieInfo">等待播放指令...</span>
+    </div>
+    
+    <script src="https://cdn.socket.io/4.5.0/socket.io.min.js"></script>
+    <script>
+        // 獲取房間ID（如果通過URL指定）
+        const urlPath = window.location.pathname;
+        const roomIdFromUrl = urlPath.startsWith('/player/') ? urlPath.split('/')[2] : null;
+        
+        // WebSocket 連接
+        const socket = io();
+        
+        // DOM 元素
+        const roomSelector = document.getElementById('roomSelector');
+        const roomList = document.getElementById('roomList');
+        const newRoomInput = document.getElementById('newRoomInput');
+        const joinNewRoomBtn = document.getElementById('joinNewRoomBtn');
+        const waitingScreen = document.getElementById('waitingScreen');
+        const videoPlayer = document.getElementById('videoPlayer');
+        const connectionStatus = document.getElementById('connectionStatus');
+        const statusBar = document.getElementById('statusBar');
+        const movieInfo = document.getElementById('movieInfo');
+        const currentRoom = document.getElementById('currentRoom');
+        const changeRoomBtn = document.getElementById('changeRoomBtn');
+        
+        let hideStatusTimer;
+        let currentRoomId = roomIdFromUrl;
+        
+        // 連接狀態處理
+        socket.on('connect', () => {
+            connectionStatus.textContent = '🟢 已連接';
+            connectionStatus.className = 'connection-status connected';
+            
+            if (currentRoomId) {
+                joinRoom(currentRoomId);
+            } else {
+                showRoomSelector();
+            }
+            
+            console.log('已連接到伺服器');
+        });
+        
+        socket.on('disconnect', () => {
+            connectionStatus.textContent = '🔴 連接中斷';
+            connectionStatus.className = 'connection-status disconnected';
+            console.log('與伺服器連接中斷');
+        });
+        
+        // 房間相關事件
+        socket.on('room_joined', (data) => {
+            currentRoomId = data.room;
+            currentRoom.textContent = data.room;
+            hideRoomSelector();
+            console.log(`已加入房間: ${data.room}`);
+        });
+        
+        // 播放影片事件
+        socket.on('play_episode', (data) => {
+            console.log('收到播放指令:', data);
+            
+            waitingScreen.style.display = 'none';
+            videoPlayer.style.display = 'block';
+            
+            // 設定影片來源
+            videoPlayer.src = data.file_path;
+            
+            // 更新狀態列
+            movieInfo.textContent = `正在播放: ${data.movie} - ${data.episode}`;
+            showStatusBar();
+            
+            // 載入並播放
+            videoPlayer.load();
+            videoPlayer.play().catch(e => {
+                console.error('播放失敗:', e);
+                movieInfo.textContent = `播放失敗: ${data.movie} - ${data.episode}`;
+            });
+        });
+        
+        // 播放/暫停控制
+        socket.on('play_pause', (data) => {
+            if (data.is_playing) {
+                videoPlayer.play();
+                movieInfo.textContent = movieInfo.textContent.replace('(暫停)', '(播放)');
+            } else {
+                videoPlayer.pause();
+                movieInfo.textContent = movieInfo.textContent.replace('(播放)', '') + ' (暫停)';
+            }
+            showStatusBar();
+        });
+        
+        // 快進快退控制
+        socket.on('seek', (data) => {
+            videoPlayer.currentTime = data.time;
+            showStatusBar();
+        });
+        
+        // 音量控制
+        socket.on('volume', (data) => {
+            videoPlayer.volume = data.volume;
+            showStatusBar();
+        });
+        
+        // 全螢幕控制
+        socket.on('fullscreen', (data) => {
+            if (data.enter) {
+                if (videoPlayer.requestFullscreen) {
+                    videoPlayer.requestFullscreen();
+                } else if (videoPlayer.webkitRequestFullscreen) {
+                    videoPlayer.webkitRequestFullscreen();
+                } else if (videoPlayer.msRequestFullscreen) {
+                    videoPlayer.msRequestFullscreen();
+                }
+            } else {
+                if (document.exitFullscreen) {
+                    document.exitFullscreen();
+                } else if (document.webkitExitFullscreen) {
+                    document.webkitExitFullscreen();
+                } else if (document.msExitFullscreen) {
+                    document.msExitFullscreen();
+                }
+            }
+        });
+        
+        // 影片事件監聽
+        videoPlayer.addEventListener('timeupdate', () => {
+            // 向伺服器回報當前播放時間
+            if (currentRoomId) {
+                socket.emit('time_update', {
+                    room: currentRoomId,
+                    time: videoPlayer.currentTime
+                });
+            }
+        });
+        
+        videoPlayer.addEventListener('ended', () => {
+            movieInfo.textContent = movieInfo.textContent + ' (播放完畢)';
+            showStatusBar();
+            
+            // 通知控制台影片播放結束
+            if (currentRoomId) {
+                socket.emit('video_ended', {
+                    room: currentRoomId,
+                    timestamp: Date.now()
+                });
+                console.log('已通知控制台影片播放結束');
+            }
+        });
+        
+        videoPlayer.addEventListener('error', (e) => {
+            console.error('影片播放錯誤:', e);
+            movieInfo.textContent = '影片播放錯誤';
+            showStatusBar();
+        });
+        
+        // 房間管理功能
+        function showRoomSelector() {
+            roomSelector.style.display = 'flex';
+            loadRoomList();
+        }
+        
+        function hideRoomSelector() {
+            roomSelector.style.display = 'none';
+        }
+        
+        async function loadRoomList() {
+            try {
+                const response = await fetch('/api/rooms');
+                const data = await response.json();
+                renderRoomList(data.rooms);
+            } catch (error) {
+                console.error('載入房間列表失敗:', error);
+                roomList.innerHTML = '<div class="loading">載入失敗</div>';
+            }
+        }
+        
+        function renderRoomList(rooms) {
+            if (rooms.length === 0) {
+                roomList.innerHTML = '<div class="loading">暫無房間，請先創建一個</div>';
+                return;
+            }
+            
+            let html = '';
+            rooms.forEach(room => {
+                const statusText = room.is_playing ? '播放中' : 
+                                 (room.current_movie ? '已暫停' : '待機中');
+                const currentContent = room.current_movie ? 
+                    `${room.current_movie} - ${room.current_episode}` : '無內容';
+                
+                html += `
+                    <div class="room-item" onclick="joinRoom('${room.id}')">
+                        <div>
+                            <div class="room-name">${room.id}</div>
+                            <div class="room-info">${currentContent}</div>
+                        </div>
+                        <div class="room-info">${statusText}</div>
+                    </div>
+                `;
+            });
+            
+            roomList.innerHTML = html;
+        }
+        
+        function joinRoom(roomId) {
+            if (!roomId) return;
+            
+            socket.emit('join_room', {
+                room: roomId,
+                type: 'player'
+            });
+        }
+        
+        function createAndJoinRoom() {
+            const roomName = newRoomInput.value.trim();
+            if (!roomName) {
+                alert('請輸入房間名稱');
+                return;
+            }
+            
+            joinRoom(roomName);
+            newRoomInput.value = '';
+        }
+        
+        // 狀態列顯示控制
+        function showStatusBar() {
+            statusBar.classList.remove('hidden');
+            clearTimeout(hideStatusTimer);
+            hideStatusTimer = setTimeout(() => {
+                statusBar.classList.add('hidden');
+            }, 3000);
+        }
+        
+        // 滑鼠移動時顯示狀態列
+        document.addEventListener('mousemove', showStatusBar);
+        
+        // 鍵盤快捷鍵
+        document.addEventListener('keydown', (e) => {
+            switch(e.code) {
+                case 'Space':
+                    e.preventDefault();
+                    if (videoPlayer.paused) {
+                        videoPlayer.play();
+                    } else {
+                        videoPlayer.pause();
+                    }
+                    break;
+                case 'KeyF':
+                    e.preventDefault();
+                    socket.emit('fullscreen', {enter: true, room: currentRoomId});
+                    break;
+                case 'Escape':
+                    e.preventDefault();
+                    socket.emit('fullscreen', {enter: false, room: currentRoomId});
+                    break;
+                case 'ArrowLeft':
+                    e.preventDefault();
+                    videoPlayer.currentTime -= 10;
+                    break;
+                case 'ArrowRight':
+                    e.preventDefault();
+                    videoPlayer.currentTime += 10;
+                    break;
+            }
+            showStatusBar();
+        });
+        
+        // 事件監聽
+        joinNewRoomBtn.addEventListener('click', createAndJoinRoom);
+        newRoomInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                createAndJoinRoom();
+            }
+        });
+        changeRoomBtn.addEventListener('click', showRoomSelector);
+        
+        console.log('播放器已初始化');
+    </script>
+</body>
+</html>

@@ -1,0 +1,853 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>影片控制台</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #333 0%, #555 100%);
+            color: white;
+            padding: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .header h1 {
+            font-size: 1.8rem;
+        }
+        
+        .connection-status {
+            padding: 8px 15px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: bold;
+        }
+        
+        .connected { background: #4CAF50; }
+        .disconnected { background: #f44336; }
+        .loading { background: #ff9800; }
+        
+        .content {
+            display: grid;
+            grid-template-columns: 1fr 300px;
+            gap: 20px;
+            padding: 20px;
+        }
+        
+        .movies-section {
+            overflow-y: auto;
+            max-height: 70vh;
+        }
+        
+        .folder-navigation {
+            margin-bottom: 20px;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 10px;
+            border: 1px solid #ddd;
+        }
+        
+        .breadcrumb {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 15px;
+            font-size: 0.9rem;
+            color: #666;
+        }
+        
+        .breadcrumb-item {
+            cursor: pointer;
+            color: #667eea;
+            text-decoration: none;
+        }
+        
+        .breadcrumb-item:hover {
+            text-decoration: underline;
+        }
+        
+        .breadcrumb-item.active {
+            color: #333;
+            font-weight: 500;
+        }
+        
+        .breadcrumb-separator {
+            color: #999;
+        }
+        
+        .control-panel {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 10px;
+            position: sticky;
+            top: 0;
+        }
+        
+        .section-title {
+            font-size: 1.3rem;
+            margin-bottom: 15px;
+            color: #333;
+            border-bottom: 2px solid #eee;
+            padding-bottom: 5px;
+        }
+        
+        .movie-item {
+            margin-bottom: 15px;
+            border: 1px solid #ddd;
+            border-radius: 10px;
+            overflow: hidden;
+            transition: all 0.2s ease;
+            cursor: pointer;
+        }
+        
+        .movie-item:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            border-color: #667eea;
+        }
+        
+        .movie-item.selected {
+            border-color: #4CAF50;
+            background: #f0fff0;
+        }
+        
+        .movie-header {
+            background: #f8f9fa;
+            padding: 15px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            transition: background 0.2s ease;
+        }
+        
+        .movie-item.selected .movie-header {
+            background: #e8f5e8;
+        }
+        
+        .movie-thumbnail {
+            width: 80px;
+            height: 60px;
+            object-fit: cover;
+            border-radius: 5px;
+            background: #ddd;
+        }
+        
+        .movie-info h3 {
+            color: #333;
+            margin-bottom: 5px;
+        }
+        
+        .episode-count {
+            color: #666;
+            font-size: 0.9rem;
+        }
+        
+        .episodes-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 10px;
+            padding: 15px;
+        }
+        
+        .episode-item {
+            border: 1px solid #eee;
+            border-radius: 8px;
+            overflow: hidden;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            background: white;
+        }
+        
+        .episode-item:hover {
+            border-color: #667eea;
+            transform: scale(1.02);
+        }
+        
+        .episode-item.playing {
+            border-color: #4CAF50;
+            background: #f0fff0;
+        }
+        
+        .episode-thumbnail {
+            width: 100%;
+            height: 120px;
+            object-fit: cover;
+            background: #f0f0f0;
+        }
+        
+        .episode-info {
+            padding: 10px;
+            text-align: center;
+        }
+        
+        .episode-name {
+            font-weight: 500;
+            color: #333;
+            font-size: 0.9rem;
+        }
+        
+        .control-group {
+            margin-bottom: 20px;
+        }
+        
+        .control-label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+            color: #333;
+        }
+        
+        .btn {
+            width: 100%;
+            padding: 12px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1rem;
+            font-weight: 500;
+            transition: all 0.2s ease;
+            margin-bottom: 10px;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        
+        .btn-success {
+            background: #4CAF50;
+            color: white;
+        }
+        
+        .btn-warning {
+            background: #ff9800;
+            color: white;
+        }
+        
+        .btn-danger {
+            background: #f44336;
+            color: white;
+        }
+        
+        .btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 3px 10px rgba(0,0,0,0.2);
+        }
+        
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .control-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+        
+        .range-input {
+            width: 100%;
+            margin: 10px 0;
+        }
+        
+        .current-status {
+            background: #e8f4fd;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        
+        .status-item {
+            margin-bottom: 8px;
+            font-size: 0.9rem;
+        }
+        
+        .status-label {
+            font-weight: 500;
+            color: #333;
+        }
+        
+        .status-value {
+            color: #666;
+        }
+        
+        .no-movies {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+        }
+        
+        .loading-placeholder {
+            text-align: center;
+            padding: 20px;
+            color: #999;
+        }
+        
+        .pulse {
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        
+        @media (max-width: 768px) {
+            .content {
+                grid-template-columns: 1fr;
+            }
+            
+            .episodes-grid {
+                grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎮 影片控制台</h1>
+            <div class="connection-status loading" id="connectionStatus">
+                🔄 連接中...
+            </div>
+        </div>
+        
+        <div class="content">
+            <div class="movies-section">
+                <h2 class="section-title">📚 影片庫</h2>
+                
+                <div class="folder-navigation">
+                    <div class="breadcrumb" id="breadcrumb">
+                        <span class="breadcrumb-item active" onclick="showMovieList()">🏠 影片庫</span>
+                    </div>
+                    <div style="font-size: 0.8rem; color: #666;" id="navigationHint">
+                        點擊電影進入集數選擇
+                    </div>
+                </div>
+                
+                <div id="moviesContainer">
+                    <div class="loading-placeholder pulse">
+                        載入影片資料中...
+                    </div>
+                </div>
+            </div>
+            
+            <div class="control-panel">
+                <h3 class="section-title">🎛️ 播放控制</h3>
+                
+                <div class="current-status">
+                    <div class="status-item">
+                        <span class="status-label">當前影片:</span>
+                        <span class="status-value" id="currentMovie">無</span>
+                    </div>
+                    <div class="status-item">
+                        <span class="status-label">當前集數:</span>
+                        <span class="status-value" id="currentEpisode">無</span>
+                    </div>
+                    <div class="status-item">
+                        <span class="status-label">播放狀態:</span>
+                        <span class="status-value" id="playStatus">待機中</span>
+                    </div>
+                </div>
+                
+                <div class="control-group">
+                    <div class="control-row">
+                        <button class="btn btn-success" id="playBtn" disabled>▶️ 播放</button>
+                        <button class="btn btn-warning" id="pauseBtn" disabled>⏸️ 暫停</button>
+                    </div>
+                </div>
+                
+                <div class="control-group">
+                    <label class="control-label">快進快退</label>
+                    <div class="control-row">
+                        <button class="btn btn-primary" id="seekBackBtn" disabled>⏪ -10秒</button>
+                        <button class="btn btn-primary" id="seekForwardBtn" disabled>⏩ +10秒</button>
+                    </div>
+                </div>
+                
+                <div class="control-group">
+                    <label class="control-label">音量控制</label>
+                    <input type="range" class="range-input" id="volumeRange" min="0" max="1" step="0.1" value="1" disabled>
+                    <div style="text-align: center; color: #666; font-size: 0.9rem;">
+                        音量: <span id="volumeDisplay">100%</span>
+                    </div>
+                </div>
+                
+                <div class="control-group">
+                    <button class="btn btn-primary" id="fullscreenBtn" disabled>🔳 全螢幕</button>
+                </div>
+                
+                <div class="control-group">
+                    <button class="btn btn-danger" id="refreshBtn">🔄 重新載入影片庫</button>
+                </div>
+                
+                <div class="control-group">
+                    <button class="btn btn-primary" id="roomManagerBtn">🏠 房間管理</button>
+                </div>
+                
+                <div class="control-group">
+                    <button class="btn btn-warning" id="changeRoomBtn">🔄 切換房間</button>
+                </div>
+                
+                <div class="control-group">
+                    <label class="control-label">自動播放設定</label>
+                    <div style="margin-top: 10px;">
+                        <label style="display: flex; align-items: center; gap: 8px; font-weight: normal; font-size: 0.9rem;">
+                            <input type="checkbox" id="autoPlayNext" checked style="margin: 0;">
+                            <span>自動播放下一集</span>
+                        </label>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script src="https://cdn.socket.io/4.5.0/socket.io.min.js"></script>
+    <script>
+        // 獲取房間ID（如果通過URL指定）
+        const urlPath = window.location.pathname;
+        const roomIdFromUrl = urlPath.startsWith('/control/') ? urlPath.split('/')[2] : null;
+        
+        // WebSocket 連接
+        const socket = io();
+        
+        // DOM 元素
+        const connectionStatus = document.getElementById('connectionStatus');
+        const moviesContainer = document.getElementById('moviesContainer');
+        const currentMovie = document.getElementById('currentMovie');
+        const currentEpisode = document.getElementById('currentEpisode');
+        const playStatus = document.getElementById('playStatus');
+        
+        // 控制按鈕
+        const playBtn = document.getElementById('playBtn');
+        const pauseBtn = document.getElementById('pauseBtn');
+        const seekBackBtn = document.getElementById('seekBackBtn');
+        const seekForwardBtn = document.getElementById('seekForwardBtn');
+        const volumeRange = document.getElementById('volumeRange');
+        const volumeDisplay = document.getElementById('volumeDisplay');
+        const fullscreenBtn = document.getElementById('fullscreenBtn');
+        const refreshBtn = document.getElementById('refreshBtn');
+        const roomManagerBtn = document.getElementById('roomManagerBtn');
+        const changeRoomBtn = document.getElementById('changeRoomBtn');
+        const autoPlayNextCheckbox = document.getElementById('autoPlayNext');
+        const breadcrumb = document.getElementById('breadcrumb');
+        const navigationHint = document.getElementById('navigationHint');
+        
+        let movies = {};
+        let currentRoomId = roomIdFromUrl || 'default';
+        let currentState = {
+            current_movie: null,
+            current_episode: null,
+            is_playing: false,
+            current_time: 0,
+            volume: 1.0
+        };
+        let selectedMovie = null; // 當前選中的電影
+        let viewMode = 'movies'; // 'movies' 或 'episodes'
+        let autoPlayNext = true; // 自動播放下一集
+        
+        // 連接狀態處理
+        socket.on('connect', () => {
+            connectionStatus.textContent = '🟢 已連接';
+            connectionStatus.className = 'connection-status connected';
+            
+            // 如果沒有指定房間，提示用戶選擇房間
+            if (!roomIdFromUrl) {
+                showRoomSelection();
+            } else {
+                joinRoom(currentRoomId);
+            }
+            
+            loadMovies();
+            console.log('已連接到伺服器');
+        });
+        
+        socket.on('disconnect', () => {
+            connectionStatus.textContent = '🔴 連接中斷';
+            connectionStatus.className = 'connection-status disconnected';
+            console.log('與伺服器連接中斷');
+        });
+        
+        // 房間相關事件
+        socket.on('room_joined', (data) => {
+            currentRoomId = data.room;
+            updateRoomDisplay();
+            console.log(`已加入房間: ${data.room}`);
+        });
+        
+        // 狀態更新
+        socket.on('state_update', (state) => {
+            currentState = state;
+            updateUI();
+        });
+        
+        // 播放結束事件
+        socket.on('video_ended', (data) => {
+            console.log('收到播放結束通知:', data);
+            if (autoPlayNext && data.room === currentRoomId) {
+                playNextEpisode();
+            }
+        });
+        
+        // 房間選擇功能
+        function showRoomSelection() {
+            const roomName = prompt('請輸入要加入的房間名稱（或創建新房間）:');
+            if (roomName && roomName.trim()) {
+                currentRoomId = roomName.trim();
+                joinRoom(currentRoomId);
+                updateRoomDisplay();
+            }
+        }
+        
+        function joinRoom(roomId) {
+            socket.emit('join_room', {
+                room: roomId,
+                type: 'controller'
+            });
+        }
+        
+        function updateRoomDisplay() {
+            // 更新頁面標題或顯示當前房間
+            document.title = `控制台 - ${currentRoomId}`;
+            
+            // 添加房間信息到狀態顯示中
+            const currentRoomElement = document.getElementById('currentRoom');
+            if (currentRoomElement) {
+                currentRoomElement.textContent = currentRoomId;
+            } else {
+                // 如果不存在，創建房間顯示元素
+                const statusContainer = document.querySelector('.current-status');
+                if (statusContainer) {
+                    const roomStatus = document.createElement('div');
+                    roomStatus.className = 'status-item';
+                    roomStatus.innerHTML = `
+                        <span class="status-label">當前房間:</span>
+                        <span class="status-value" id="currentRoom">${currentRoomId}</span>
+                    `;
+                    statusContainer.insertBefore(roomStatus, statusContainer.firstChild);
+                }
+            }
+        }
+        
+        // 載入影片資料
+        async function loadMovies() {
+            try {
+                const response = await fetch('/api/movies');
+                movies = await response.json();
+                renderMovies();
+            } catch (error) {
+                console.error('載入影片失敗:', error);
+                moviesContainer.innerHTML = '<div class="no-movies">載入影片失敗</div>';
+            }
+        }
+        
+        // 渲染影片列表
+        function renderMovies() {
+            if (Object.keys(movies).length === 0) {
+                moviesContainer.innerHTML = `
+                    <div class="no-movies">
+                        <h3>📁 暫無影片</h3>
+                        <p>請將影片放置在以下結構中：</p>
+                        <p><code>./data/片名/縮圖.jpg</code></p>
+                        <p><code>./data/片名/集數.mp4</code></p>
+                        <p><code>./data/片名/集數.jpg</code></p>
+                    </div>
+                `;
+                return;
+            }
+            
+            if (viewMode === 'movies') {
+                renderMoviesList();
+            } else if (viewMode === 'episodes' && selectedMovie) {
+                renderEpisodesList(selectedMovie);
+            }
+        }
+        
+        // 渲染電影列表
+        function renderMoviesList() {
+            updateBreadcrumb([{name: '🏠 影片庫', action: 'showMovieList()'}]);
+            navigationHint.textContent = '點擊電影進入集數選擇';
+            
+            let html = '';
+            for (const [movieName, movieData] of Object.entries(movies)) {
+                const isSelected = selectedMovie === movieName;
+                html += `
+                    <div class="movie-item ${isSelected ? 'selected' : ''}" onclick="selectMovie('${movieName}')">
+                        <div class="movie-header">
+                            ${movieData.thumbnail ? 
+                                `<img src="${movieData.thumbnail}" alt="${movieName}" class="movie-thumbnail">` :
+                                `<div class="movie-thumbnail" style="display: flex; align-items: center; justify-content: center; background: #ddd; color: #666;">📺</div>`
+                            }
+                            <div class="movie-info">
+                                <h3>${movieName}</h3>
+                                <div class="episode-count">${movieData.episodes.length} 集</div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+            moviesContainer.innerHTML = html;
+        }
+        
+        // 渲染集數列表
+        function renderEpisodesList(movieName) {
+            const movieData = movies[movieName];
+            if (!movieData) return;
+            
+            updateBreadcrumb([
+                {name: '🏠 影片庫', action: 'showMovieList()'},
+                {name: `📁 ${movieName}`, active: true}
+            ]);
+            navigationHint.textContent = '點擊集數開始播放';
+            
+            let html = `
+                <div class="episodes-grid">
+                    ${movieData.episodes.map((episode, index) => `
+                        <div class="episode-item" onclick="playEpisode('${movieName}', '${episode.name}', '${episode.file}')" 
+                             data-movie="${movieName}" data-episode="${episode.name}" data-index="${index}">
+                            ${episode.thumbnail ?
+                                `<img src="${episode.thumbnail}" alt="${episode.display_name || episode.name}" class="episode-thumbnail">` :
+                                `<div class="episode-thumbnail" style="display: flex; align-items: center; justify-content: center; background: #f0f0f0; color: #999;">🎬</div>`
+                            }
+                            <div class="episode-info">
+                                <div class="episode-name">${episode.display_name || episode.name}</div>
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+            moviesContainer.innerHTML = html;
+            updatePlayingIndicator();
+        }
+        
+        // 更新麵包屑導航
+        function updateBreadcrumb(items) {
+            let html = '';
+            items.forEach((item, index) => {
+                if (index > 0) {
+                    html += '<span class="breadcrumb-separator">></span>';
+                }
+                if (item.active) {
+                    html += `<span class="breadcrumb-item active">${item.name}</span>`;
+                } else {
+                    html += `<span class="breadcrumb-item" onclick="${item.action}">${item.name}</span>`;
+                }
+            });
+            breadcrumb.innerHTML = html;
+        }
+        
+        // 選擇電影
+        function selectMovie(movieName) {
+            selectedMovie = movieName;
+            viewMode = 'episodes';
+            renderMovies();
+        }
+        
+        // 顯示電影列表
+        function showMovieList() {
+            selectedMovie = null;
+            viewMode = 'movies';
+            renderMovies();
+        }
+        
+        // 播放指定集數
+        function playEpisode(movie, episode, filePath) {
+            socket.emit('play_episode', {
+                room: currentRoomId,
+                movie: movie,
+                episode: episode,
+                file_path: filePath
+            });
+            
+            // 自動選擇電影並切換到集數視圖
+            if (selectedMovie !== movie) {
+                selectedMovie = movie;
+                viewMode = 'episodes';
+                renderMovies();
+            }
+            
+            console.log(`房間 ${currentRoomId} 播放: ${movie} - ${episode}`);
+        }
+        
+        // 播放下一集
+        function playNextEpisode() {
+            if (!currentState.current_movie || !currentState.current_episode) {
+                console.log('沒有當前播放的影片');
+                return;
+            }
+            
+            const movieData = movies[currentState.current_movie];
+            if (!movieData) {
+                console.log('找不到當前電影資料');
+                return;
+            }
+            
+            const currentIndex = movieData.episodes.findIndex(ep => ep.name === currentState.current_episode);
+            if (currentIndex === -1) {
+                console.log('找不到當前集數');
+                return;
+            }
+            
+            const nextIndex = currentIndex + 1;
+            if (nextIndex < movieData.episodes.length) {
+                const nextEpisode = movieData.episodes[nextIndex];
+                console.log(`自動播放下一集: ${nextEpisode.name}`);
+                playEpisode(currentState.current_movie, nextEpisode.name, nextEpisode.file);
+            } else {
+                console.log('已是最後一集');
+                // 可以選擇播放下一部電影的第一集或停止
+                // 這裡選擇停止播放
+                playStatus.textContent = '播放完畢';
+            }
+        }
+        
+        // 更新界面
+        function updateUI() {
+            // 更新當前狀態顯示
+            currentMovie.textContent = currentState.current_movie || '無';
+            currentEpisode.textContent = currentState.current_episode || '無';
+            playStatus.textContent = currentState.is_playing ? '播放中' : 
+                                   (currentState.current_movie ? '已暫停' : '待機中');
+            
+            // 更新音量顯示
+            volumeRange.value = currentState.volume;
+            volumeDisplay.textContent = Math.round(currentState.volume * 100) + '%';
+            
+            // 啟用/禁用控制按鈕
+            const hasMedia = currentState.current_movie && currentState.current_episode;
+            playBtn.disabled = !hasMedia || currentState.is_playing;
+            pauseBtn.disabled = !hasMedia || !currentState.is_playing;
+            seekBackBtn.disabled = !hasMedia;
+            seekForwardBtn.disabled = !hasMedia;
+            volumeRange.disabled = !hasMedia;
+            fullscreenBtn.disabled = !hasMedia;
+            
+            // 更新播放指示器
+            updatePlayingIndicator();
+        }
+        
+        // 更新播放指示器
+        function updatePlayingIndicator() {
+            // 移除所有播放指示器
+            document.querySelectorAll('.episode-item').forEach(item => {
+                item.classList.remove('playing');
+            });
+            
+            // 添加當前播放的指示器
+            if (currentState.current_movie && currentState.current_episode) {
+                const playingItem = document.querySelector(
+                    `[data-movie="${currentState.current_movie}"][data-episode="${currentState.current_episode}"]`
+                );
+                if (playingItem) {
+                    playingItem.classList.add('playing');
+                }
+            }
+        }
+        
+        // 控制按鈕事件處理
+        playBtn.addEventListener('click', () => {
+            socket.emit('play_pause', {room: currentRoomId, is_playing: true});
+        });
+        
+        pauseBtn.addEventListener('click', () => {
+            socket.emit('play_pause', {room: currentRoomId, is_playing: false});
+        });
+        
+        seekBackBtn.addEventListener('click', () => {
+            socket.emit('seek', {room: currentRoomId, time: Math.max(0, currentState.current_time - 10)});
+        });
+        
+        seekForwardBtn.addEventListener('click', () => {
+            socket.emit('seek', {room: currentRoomId, time: currentState.current_time + 10});
+        });
+        
+        volumeRange.addEventListener('input', (e) => {
+            const volume = parseFloat(e.target.value);
+            socket.emit('volume', {room: currentRoomId, volume: volume});
+            volumeDisplay.textContent = Math.round(volume * 100) + '%';
+        });
+        
+        fullscreenBtn.addEventListener('click', () => {
+            socket.emit('fullscreen', {room: currentRoomId, enter: true});
+        });
+        
+        refreshBtn.addEventListener('click', () => {
+            loadMovies();
+        });
+        
+        roomManagerBtn.addEventListener('click', () => {
+            window.open('/rooms', '_blank');
+        });
+        
+        changeRoomBtn.addEventListener('click', () => {
+            showRoomSelection();
+        });
+        
+        autoPlayNextCheckbox.addEventListener('change', (e) => {
+            autoPlayNext = e.target.checked;
+            console.log('自動播放下一集:', autoPlayNext ? '開啟' : '關閉');
+        });
+        
+        // 鍵盤快捷鍵
+        document.addEventListener('keydown', (e) => {
+            if (e.target.tagName === 'INPUT') return; // 忽略輸入框
+            
+            switch(e.code) {
+                case 'Space':
+                    e.preventDefault();
+                    if (currentState.is_playing) {
+                        pauseBtn.click();
+                    } else {
+                        playBtn.click();
+                    }
+                    break;
+                case 'ArrowLeft':
+                    e.preventDefault();
+                    seekBackBtn.click();
+                    break;
+                case 'ArrowRight':
+                    e.preventDefault();
+                    seekForwardBtn.click();
+                    break;
+                case 'KeyF':
+                    e.preventDefault();
+                    fullscreenBtn.click();
+                    break;
+                case 'KeyR':
+                    if (e.ctrlKey) {
+                        e.preventDefault();
+                        refreshBtn.click();
+                    }
+                    break;
+            }
+        });
+        
+        console.log('控制台已初始化');
+    </script>
+</body>
+</html>
